@@ -1,103 +1,135 @@
-import React, { useState, useEffect } from 'react';
+const WebSocket = require('ws');
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
 
-const App = () => {
-    const [files, setFiles] = useState([]);
-    const [uploadedFiles, setUploadedFiles] = useState([]);
-    const [showPopup, setShowPopup] = useState(false);
-    const [ws, setWs] = useState(null);
+const PORT = 8086;
+const UPLOAD_DIR = 'C:/TEMP/uploads';
 
-    useEffect(() => {
-        const socket = new WebSocket('ws://localhost:8086');
-        setWs(socket);
+// Create the upload directory if it doesn't exist
+if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR);
+}
 
-        socket.onmessage = (event) => {
-            const message = JSON.parse(event.data);
+// Create an HTTP server to serve static files
+const server = http.createServer((req, res) => {
+    if (req.url.startsWith('/uploaded_files')) {
+        const filePath = path.join(UPLOAD_DIR, req.url.replace('/uploaded_files/', ''));
 
-            if (message.type === 'file_list') {
-                setUploadedFiles(message.files);
-            } else if (message.type === 'file_download') {
-                const fileBlob = new Blob([new Uint8Array(message.data)]);
-                const fileUrl = URL.createObjectURL(fileBlob);
-
-                // Create a link element and trigger download
-                const link = document.createElement('a');
-                link.href = fileUrl;
-                link.download = message.name;
-                link.click();
-
-                // Clean up URL object
-                URL.revokeObjectURL(fileUrl);
+        fs.readFile(filePath, (err, data) => {
+            if (err) {
+                res.writeHead(404);
+                res.end(JSON.stringify(err));
+                return;
             }
-        };
 
-        return () => socket.close();
-    }, []);
-
-    const handleFileChange = (event) => {
-        setFiles(event.target.files);
-    };
-
-    const handleUpload = () => {
-        if (!ws) return;
-
-        // Request the list of uploaded files when the popup is triggered
-        ws.send(JSON.stringify({ type: 'list_files' }));
-        setShowPopup(true);
-    };
-
-    const handleDownload = (filename) => {
-        if (!ws) return;
-    
-        ws.send(JSON.stringify({ type: 'download', name: filename }));
-    };
-    
-    const handleSave = () => {
-        if (!ws || files.length === 0) return;
-
-        Array.from(files).forEach(file => {
-            const reader = new FileReader();
-            reader.onload = () => {
-                const fileData = reader.result;
-                ws.send(JSON.stringify({
-                    type: 'upload',
-                    name: file.name,
-                    data: Array.from(new Uint8Array(fileData))
-                }));
-            };
-            reader.readAsArrayBuffer(file);
+            res.writeHead(200);
+            res.end(data);
         });
+    } else {
+        res.writeHead(404);
+        res.end('Not Found');
+    }
+});
 
-        // Clear file input and close popup after saving
-        setFiles([]);
-        setShowPopup(false);
-    };
+const wss = new WebSocket.Server({ server });
 
-    return (
-        <div>
-            <input type="file" multiple onChange={handleFileChange} />
-            <button onClick={handleUpload}>Upload Files</button>
+wss.on('connection', (ws) => {
+    console.log('Client connected');
 
-            {showPopup && (
-                <div className="popup">
-                    <div className="popup-content">
-                        <h3>Uploaded Files</h3>
-                        <ul>
-                            {uploadedFiles.map((file, index) => (
-                                <li key={index}>
-                                    <a href={file.url} target="_blank" rel="noopener noreferrer">
-                                        {file.name}
-                                    </a>
-                                    <button onClick={() => handleDownload(file.name)}>Download</button>
-                                </li>
-                            ))}
-                        </ul>
-                        <button onClick={handleSave}>Save Files</button>
-                        <button onClick={() => setShowPopup(false)}>Close</button>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
+    ws.on('error', (error) => {
+        console.error('WebSocket connection error:', error);
+    });
 
-export default App;
+    ws.on('message', (message) => {
+        try {
+            const parsedMessage = JSON.parse(message);
+
+            switch (parsedMessage.type) {
+                case 'upload':
+                    handleFileUpload(ws, parsedMessage);
+                    break;
+                case 'list_files':
+                    sendFileList(ws);
+                    break;
+                case 'download':
+                    handleFileDownload(ws, parsedMessage);
+                    break;
+                default:
+                    ws.send(JSON.stringify({ type: 'error', message: 'Unknown message type' }));
+            }
+        } catch (error) {
+            console.error('Error processing message:', error);
+            ws.send(JSON.stringify({ type: 'error', message: 'Server error occurred' }));
+        }
+    });
+
+    ws.on('close', () => {
+        console.log('Client disconnected');
+    });
+});
+
+function handleFileUpload(ws, { name, data }) {
+    const filePath = path.join(UPLOAD_DIR, name);
+    const fileBuffer = Buffer.from(data);
+
+    fs.writeFile(filePath, fileBuffer, (err) => {
+        if (err) {
+            console.error('Error saving file:', err);
+            ws.send(JSON.stringify({ type: 'error', message: 'Error saving file' }));
+            return;
+        }
+
+        console.log(`File ${name} uploaded successfully`);
+        sendFileList(ws);
+    });
+}
+
+function sendFileList(ws) {
+    fs.readdir(UPLOAD_DIR, (err, files) => {
+        if (err) {
+            console.error('Error reading files:', err);
+            ws.send(JSON.stringify({ type: 'error', message: 'Error reading files' }));
+            return;
+        }
+
+        const fileDetails = files.map(fileName => ({
+            name: fileName,
+            url: `http://localhost:${PORT}/uploaded_files/${fileName}`,
+        }));
+
+        ws.send(JSON.stringify({ type: 'file_list', files: fileDetails }));
+    });
+}
+
+function handleFileDownload(ws, { name }) {
+    const filePath = path.join(UPLOAD_DIR, name);
+
+    fs.readFile(filePath, (err, fileData) => {
+        if (err) {
+            ws.send(JSON.stringify({ type: 'error', message: 'File not found' }));
+            return;
+        }
+
+        ws.send(JSON.stringify({
+            type: 'file_download',
+            name,
+            data: Array.from(new Uint8Array(fileData))
+        }));
+    });
+}
+
+// General error handlers for uncaught exceptions and unhandled rejections
+process.on('uncaughtException', (err) => {
+    console.error('Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled rejection at:', promise, 'reason:', reason);
+});
+
+// Start the HTTP server and WebSocket server
+server.listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`WebSocket server is running on ws://localhost:${PORT}`);
+});
