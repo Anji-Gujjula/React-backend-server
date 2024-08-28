@@ -1,47 +1,75 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const App = () => {
     const [files, setFiles] = useState([]);
     const [uploadedFiles, setUploadedFiles] = useState([]);
     const [showPopup, setShowPopup] = useState(false);
+    const [ws, setWs] = useState(null);
+
+    useEffect(() => {
+        const socket = new WebSocket('ws://localhost:8086');
+        setWs(socket);
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+
+            if (message.type === 'file_list') {
+                setUploadedFiles(message.files);
+            } else if (message.type === 'file_download') {
+                const fileBlob = new Blob([new Uint8Array(message.data)]);
+                const fileUrl = URL.createObjectURL(fileBlob);
+
+                // Create a link element and trigger download
+                const link = document.createElement('a');
+                link.href = fileUrl;
+                link.download = message.name;
+                link.click();
+
+                // Clean up URL object
+                URL.revokeObjectURL(fileUrl);
+            }
+        };
+
+        return () => socket.close();
+    }, []);
 
     const handleFileChange = (event) => {
         setFiles(event.target.files);
     };
 
-    const handleUpload = async () => {
-        const formData = new FormData();
-        Array.from(files).forEach(file => {
-            formData.append('files', file);
-        });
+    const handleUpload = () => {
+        if (!ws) return;
 
-        try {
-            const response = await fetch('http://localhost:8086/upload', {
-                method: 'POST',
-                body: formData,
-            });
-
-            if (response.ok) {
-                alert('Files uploaded successfully');
-                fetchUploadedFiles();
-            } else {
-                alert('Failed to upload files');
-            }
-        } catch (error) {
-            console.error('Error uploading files:', error);
-        }
-
+        // Request the list of uploaded files when the popup is triggered
+        ws.send(JSON.stringify({ type: 'list_files' }));
         setShowPopup(true);
     };
 
-    const fetchUploadedFiles = async () => {
-        try {
-            const response = await fetch('http://localhost:8086/list_files');
-            const files = await response.json();
-            setUploadedFiles(files);
-        } catch (error) {
-            console.error('Error fetching files:', error);
-        }
+    const handleDownload = (filename) => {
+        if (!ws) return;
+    
+        ws.send(JSON.stringify({ type: 'download', name: filename }));
+    };
+    
+    const handleSave = () => {
+        if (!ws || files.length === 0) return;
+
+        Array.from(files).forEach(file => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const fileData = reader.result;
+                ws.send(JSON.stringify({
+                    type: 'upload',
+                    name: file.name,
+                    data: Array.from(new Uint8Array(fileData))
+                }));
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // Clear file input and close popup after saving
+        setFiles([]);
+        setShowPopup(false);
     };
 
     return (
@@ -59,9 +87,11 @@ const App = () => {
                                     <a href={file.url} target="_blank" rel="noopener noreferrer">
                                         {file.name}
                                     </a>
+                                    <button onClick={() => handleDownload(file.name)}>Download</button>
                                 </li>
                             ))}
                         </ul>
+                        <button onClick={handleSave}>Save Files</button>
                         <button onClick={() => setShowPopup(false)}>Close</button>
                     </div>
                 </div>
