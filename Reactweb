@@ -1,64 +1,105 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const App = () => {
-  const [fileContent, setFileContent] = useState('');
   const [fileName, setFileName] = useState('');
+  const [fileContent, setFileContent] = useState('');
+  const [directoryHandle, setDirectoryHandle] = useState(null);
 
-  // Function to save file
-  const saveFile = async () => {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: 'newfile.txt',
-        types: [{
-          description: 'Text Files',
-          accept: {'text/plain': ['.txt']},
-        }],
-      });
+  useEffect(() => {
+    // Retrieve stored directory handle on component mount
+    const retrieveDirectoryHandle = async () => {
+      const storedHandle = localStorage.getItem('directoryHandle');
+      if (storedHandle) {
+        try {
+          // Deserialize the handle from localStorage
+          const parsedHandle = JSON.parse(storedHandle);
+          setDirectoryHandle(parsedHandle);
+        } catch (err) {
+          console.error('Error retrieving directory handle:', err);
+          localStorage.removeItem('directoryHandle');
+        }
+      }
+    };
+    retrieveDirectoryHandle();
+  }, []);
 
-      const writable = await handle.createWritable();
-      await writable.write(fileContent);
-      await writable.close();
-      setFileName(handle.name);
-      alert(`File saved as ${handle.name}`);
-    } catch (err) {
-      console.error('Error saving file:', err);
+  // Function to handle file selection (upload)
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setFileContent(reader.result);
+        setFileName(file.name);
+      };
+      reader.readAsText(file);
     }
   };
 
-  // Function to open and read file
+  // Function to save the file in a user-selected directory
+  const saveFile = async () => {
+    try {
+      // Prompt user to select a file for saving
+      const fileHandle = await window.showSaveFilePicker({
+        suggestedName: fileName || 'newfile.txt',
+        types: [
+          {
+            description: 'All Files',
+            accept: {
+              '*/*': [] // Accept only text files
+            }
+          }
+        ]
+      });
+
+      const writable = await fileHandle.createWritable();
+      await writable.write(fileContent);
+      await writable.close();
+
+      alert(`File saved successfully as ${fileHandle.name}`);
+      setFileName(fileHandle.name);
+    } catch (err) {
+      console.error('Error saving file:', err);
+      alert('Failed to save file. Please ensure the location is accessible and that you have the necessary permissions.');
+    }
+  };
+
   const openFile = async () => {
     try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{
-          description: 'Text Files',
-          accept: {'text/plain': ['.txt']},
-        }],
+      // Prompt user to choose a file
+      const [fileHandle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'All Files',
+            accept: {
+              '*/*': [] // Accept only text files
+            }
+          }
+        ],
         multiple: false,
       });
 
-      const file = await handle.getFile();
+      const file = await fileHandle.getFile();
       const content = await file.text();
+
       setFileContent(content);
       setFileName(file.name);
+      alert(`File content loaded: ${file.name}`);
     } catch (err) {
       console.error('Error opening file:', err);
+      alert('Failed to open file. Ensure the location is accessible and that you have the necessary permissions.');
     }
   };
 
   return (
     <div>
-      <h1>File System Access API</h1>
-      <button onClick={openFile}>Open File</button>
-      <button onClick={saveFile}>Save File</button>
-      <br /><br />
-      <textarea
-        rows="10"
-        cols="50"
-        value={fileContent}
-        onChange={(e) => setFileContent(e.target.value)}
-      />
+      <h1>File System Access API - Save and Open</h1>
+      <input type="file" onChange={handleFileUpload} />
       <br />
-      {fileName && <p>Opened/Saved file: {fileName}</p>}
+      <button onClick={saveFile}>Save File</button>
+      <button onClick={openFile}>Open File</button>
+      <br />
+      {fileName && <p>Selected file: {fileName}</p>}
     </div>
   );
 };
