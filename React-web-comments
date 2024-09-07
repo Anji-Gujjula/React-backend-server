@@ -36,7 +36,7 @@ const App = () => {
           {
             description: 'All Files',
             accept: {
-              '*/*': [] // Accept all file types
+              '*/*': [] // Accept all files
             }
           }
         ]
@@ -64,7 +64,7 @@ const App = () => {
           {
             description: 'All Files',
             accept: {
-              '*/*': [] // Accept all file types
+              '*/*': [] // Accept all files
             }
           }
         ],
