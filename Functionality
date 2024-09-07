@@ -1,0 +1,33 @@
+Documenting Functionality
+
+1. File Upload (handleFileUpload):
+
+Handles the file upload process.
+Reads the file content and sets it to the state.
+Displays the file name.
+2. Save File to User-Selected Directory (saveFile1):
+
+Prompts the user to select a location to save the file.
+Writes the current file content to the selected location.
+Updates the state with the new file name.
+
+3. Open File (openFile):
+
+Prompts the user to select a file to open.
+Reads the content of the file and sets it to the state.
+Displays an editor popup with the file content.
+
+4. Save Edited File (saveFile):
+
+Saves the content from the editor to the original file.
+Closes the editor popup after saving.
+5. Editor Content Change (handleEditorChange):
+
+Updates the editor content state as the user types.
+
+6. Editor Display:
+
+Shows a popup editor for file editing.
+Provides options to save changes or cancel editing.
+
+This setup uses the File System Access API to interact with files, allowing users to open, edit, and save files directly in their local file system.
