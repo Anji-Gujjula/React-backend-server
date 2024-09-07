@@ -1,0 +1,149 @@
+import React, { useState } from 'react';
+
+const App = () => {
+  // State to store the selected file's name
+  const [fileName, setFileName] = useState('');
+  // State to store the content of the selected file
+  const [fileContent, setFileContent] = useState('');
+  // State to store the file handle for the file being edited
+  const [fileHandle, setFileHandle] = useState(null);
+  // State to control the display of the editor popup
+  const [showEditor, setShowEditor] = useState(false);
+  // State for the content in the editor
+  const [editorContent, setEditorContent] = useState('');
+
+  // Function to handle file selection (upload)
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0]; // Get the first file selected by the user
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        // Set the file content and name after reading the file
+        setFileContent(reader.result);
+        setFileName(file.name);
+      };
+      reader.readAsText(file); // Read the file as text
+    }
+  };
+
+  // Function to save the file in a user-selected directory
+  const saveFile1 = async () => {
+    try {
+      // Prompt user to select a file for saving
+      const fileHandle = await window.showSaveFilePicker({
+        suggestedName: fileName || 'newfile.txt',
+        types: [
+          {
+            description: 'All Files',
+            accept: {
+              '*/*': [] // Accept all file types
+            }
+          }
+        ]
+      });
+
+      // Create a writable stream to write data to the file
+      const writable = await fileHandle.createWritable();
+      await writable.write(fileContent);
+      await writable.close();
+
+      alert(`File saved successfully as ${fileHandle.name}`);
+      setFileName(fileHandle.name); // Update the file name state
+    } catch (err) {
+      console.error('Error saving file:', err);
+      alert('Failed to save file. Please ensure the location is accessible and that you have the necessary permissions.');
+    }
+  };
+
+  // Function to handle file selection (open)
+  const openFile = async () => {
+    try {
+      // Prompt user to choose a file
+      const [handle] = await window.showOpenFilePicker({
+        types: [
+          {
+            description: 'All Files',
+            accept: {
+              '*/*': [] // Accept all file types
+            }
+          }
+        ],
+        multiple: false, // Do not allow multiple file selection
+      });
+
+      // Get the file and its content
+      const file = await handle.getFile();
+      const content = await file.text();
+
+      // Set state and show the editor
+      setFileHandle(handle); // Store the file handle
+      setFileName(file.name); // Set the file name
+      setEditorContent(content); // Set the editor content
+      setShowEditor(true); // Show the editor popup
+    } catch (err) {
+      console.error('Error opening file:', err);
+      alert('Failed to open file. Ensure the location is accessible and that you have the necessary permissions.');
+    }
+  };
+
+  // Function to save the file with the modified content
+  const saveFile = async () => {
+    if (!fileHandle) {
+      alert('No file handle found. Please open a file first.');
+      return;
+    }
+
+    try {
+      // Create a writable stream to write data to the file
+      const writable = await fileHandle.createWritable();
+      await writable.write(editorContent);
+      await writable.close();
+
+      alert(`File saved successfully as ${fileHandle.name}`);
+      setFileName(fileHandle.name); // Update the file name state
+      setShowEditor(false); // Hide the editor popup
+    } catch (err) {
+      console.error('Error saving file:', err);
+      alert('Failed to save file. Please ensure the location is accessible and that you have the necessary permissions.');
+    }
+  };
+
+  // Function to handle content change in the editor
+  const handleEditorChange = (event) => {
+    setEditorContent(event.target.value); // Update editor content state
+  };
+
+  return (
+    <div>
+      <h1>File System Access API - Save and Open</h1>
+      {/* Input element to upload a file */}
+      <input type="file" onChange={handleFileUpload} />
+      <br />
+      {/* Button to save a file */}
+      <button onClick={saveFile1}>Save File</button>
+      {/* Button to open a file */}
+      <button onClick={openFile}>Open File</button>
+      <br />
+      {/* Display the name of the selected file */}
+      {fileName && <p>Selected file: {fileName}</p>}
+      {/* Display the editor modal if showEditor is true */}
+      {showEditor && (
+        <div className="editor-popup">
+          <textarea 
+            value={editorContent} 
+            onChange={handleEditorChange} 
+            rows="10" 
+            cols="30"
+          />
+          <br />
+          {/* Button to save the file from the editor */}
+          <button onClick={saveFile}>Save</button>
+          {/* Button to cancel editing and close the editor */}
+          <button onClick={() => setShowEditor(false)}>Cancel</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
