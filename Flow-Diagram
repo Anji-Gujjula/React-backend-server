@@ -1,0 +1,58 @@
+Flow Diagram Components
+Start
+Upload File
+User selects a file.
+File content is read and displayed.
+Save File
+User clicks "Save File" button.
+User selects a location and saves the file.
+Open File
+User clicks "Open File" button.
+User selects a file to open.
+File content is read and displayed in the editor.
+Edit File
+User modifies content in the editor.
+Save Edited File
+User clicks "Save" button in the editor.
+The modified content is saved to the original file.
+Cancel Editing
+User clicks "Cancel" button in the editor.
+Editor is closed without saving changes.
+End
+
+
+Flow Diagram Description
+Start
+
+Entry point of the application.
+File Upload
+
+Action: User selects a file via the file input.
+Process: handleFileUpload reads the file content.
+Output: File content and name are set in the state.
+Save File
+
+Action: User clicks "Save File".
+Process: saveFile1 prompts user to select a save location and writes file content.
+Output: File is saved and file name is updated.
+Open File
+
+Action: User clicks "Open File".
+Process: openFile prompts user to select a file and reads its content.
+Output: File content is loaded into the editor, and editor is shown.
+Edit File
+
+Action: User modifies content in the editor.
+Process: Content changes are reflected in the editorContent state.
+Save Edited File
+
+Action: User clicks "Save" in the editor.
+Process: saveFile writes the modified content back to the file.
+Output: File is updated and editor is closed.
+Cancel Editing
+
+Action: User clicks "Cancel" in the editor.
+Process: Editor is closed without saving changes.
+End
+
+Exit point of the application.
